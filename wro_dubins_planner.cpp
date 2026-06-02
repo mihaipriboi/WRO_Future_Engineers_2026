@@ -39,7 +39,7 @@ static constexpr double LANE_WIDTH   = (TRACK_OUTER - TRACK_INNER) / 2.0; // ~20
 static constexpr double PILLAR_RADIUS =  25.0; // raza fizica a pilonului (mm)
 
 // Raza minima de viraj a robotului (ajusteaza pentru robotul tau)
-static constexpr double MIN_TURN_RADIUS = 150.0; // mm
+static constexpr double MIN_TURN_RADIUS = 175.0; // mm
 
 // Offset lateral fata de pilon (cat de departe treci pe langa el)
 static constexpr double PASS_OFFSET = PILLAR_RADIUS + 80.0; // mm

@@ -71,16 +71,17 @@ This repository contains the documentation for the Nerdvana Cancer team's robot 
 
 ## The Team <a class="anchor" id="team"></a>
 
-### Orășeanu Andrei
+
+### Priboi Luca Mihai
 <p align="center">
-  <img src="./images/team/oraseanu-andrei.jpg" alt="Orășeanu Andrei" width="80%">
+  <img src="./images/team/priboi-luca-mihai.jpg" alt="Priboi Luca Mihai" width="80%">
 </p>
 
-<b>Age:</b> 17
+<b>Age:</b> 20
 
-<b>School:</b> 11th grade, Colegiul Național Gheorghe Șincai
+<b>University:</b> 2nd year, Politehnica University of Bucharest
 
-<b>Description:</b> Hello! I'm Andrei, and I've been part of WRO since 2023. What pulled me in from the very first season was the part where you build something with your own hands and then have to teach it to think for itself, that moment when the robot finally does the thing on its own never gets old. My main passions are robotics and physics, but outside the workshop I love traveling ✈️, a long game of chess ♟️, and playing basketball 🏀. I joined the team this year wanting to push our self-driving car further than we ever have, and so far it's been exactly the kind of challenge I was hoping for.
+<b>Description:</b> Hello! I am Mihai! I've been participating at WRO since 2015 and I am very excited to be part of the Nerdvana Romania team. My academic passions are programming, physics and robotics, but I also enjoy playing the piano 🎹, whatching movies 🎬, traveling ✈️ and Formula 1 🏎️🏁.
 
 ---
 
@@ -97,16 +98,16 @@ This repository contains the documentation for the Nerdvana Cancer team's robot 
 
 ---
 
-### Priboi Luca Mihai
+### Orășeanu Andrei
 <p align="center">
-  <img src="./images/team/priboi-luca-mihai.jpg" alt="Priboi Luca Mihai" width="80%">
+  <img src="./images/team/oraseanu-andrei.jpg" alt="Orășeanu Andrei" width="80%">
 </p>
 
-<b>Age:</b> 20
+<b>Age:</b> 17
 
-<b>University:</b> 2nd year, Politehnica University of Bucharest
+<b>School:</b> 11th grade, Colegiul Național Gheorghe Șincai
 
-<b>Description:</b> Hello! I am Mihai! I've been participating at WRO since 2015 and I am very excited to be part of the Nerdvana Romania team. My academic passions are programming, physics and robotics, but I also enjoy playing the piano 🎹, whatching movies 🎬, traveling ✈️ and Formula 1 🏎️🏁.
+<b>Description:</b> Hello! I'm Andrei, and I've been part of WRO since 2023. What pulled me in from the very first season was the part where you build something with your own hands and then have to teach it to think for itself, that moment when the robot finally does the thing on its own never gets old. My main passions are robotics and physics, but outside the workshop I love traveling ✈️, a long game of chess ♟️, and playing basketball 🏀. I joined the team this year wanting to push our self-driving car further than we ever have, and so far it's been exactly the kind of challenge I was hoping for.
 
 ---
 

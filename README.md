@@ -44,6 +44,12 @@ This repository contains the documentation for the Nerdvana Cancer team's robot 
   * [Qualification Round](#quali-management)
   * [Final Round](#final-management)
   * [Additional code](#additional-code)
+* [What We Changed This Year](#whats-new)
+  * [Tuning and telemetry over WiFi](#wifi-dashboard)
+  * [A drift-free gyro that finds its own straight](#self-straight)
+  * [Our own localization and route memory](#self-localization)
+  * [Rethinking the parking](#smart-parking)
+  * [Where this is heading](#next-steps)
 * [Robot Construction Guide](#robot-construction-guide)
   * [Step 0: Print the 3D parts](#3d-printing)
   * [Step 1: Assemble the steering system](#steering-system-assembly)
@@ -65,16 +71,16 @@ This repository contains the documentation for the Nerdvana Cancer team's robot 
 
 ## The Team <a class="anchor" id="team"></a>
 
-### -
+### Orășeanu Andrei
 <p align="center">
-  <img src="./images/team/-.jpeg" alt="-" width="80%">
+  <img src="./images/team/oraseanu-andrei.jpg" alt="Orășeanu Andrei" width="80%">
 </p>
 
-<b>Age:</b> -
+<b>Age:</b> 17
 
-<b>School:</b> -
+<b>School:</b> 11th grade, Colegiul Național Gheorghe Șincai
 
-<b>Description:</b> -
+<b>Description:</b> Hello! I'm Andrei, and I've been part of WRO since 2023. What pulled me in from the very first season was the part where you build something with your own hands and then have to teach it to think for itself, that moment when the robot finally does the thing on its own never gets old. My main passions are robotics and physics, but outside the workshop I love traveling ✈️, a long game of chess ♟️, and playing basketball 🏀. I joined the team this year wanting to push our self-driving car further than we ever have, and so far it's been exactly the kind of challenge I was hoping for.
 
 ---
 
@@ -1547,6 +1553,143 @@ def is_parking_wall(blob):
         return True
     return False
 ```
+
+<br>
+
+# What We Changed This Year <a class="anchor" id="whats-new"></a>
+
+The mechanical robot above is basically the L.A.C.H.E. we ended last season with, and we were happy with it, so this year almost all of our work went into the software. The strategy in the two sections above (the switch-case quali run and the cube-following final) is still the backbone of how the robot competes. What follows is everything we built on top of it: a way to actually see what the robot is thinking, a gyro that no longer drifts, a car that calibrates its own steering, and the start of a localization system that lets us drive the track from memory instead of reacting to it corner by corner.
+
+A note before the WiFi part, because it matters: **WiFi is a pit tool, not a race tool.** During an official run the radio is off and the robot is completely on its own (the camera still talks to the Arduino over UART, exactly like before). Everything described here that uses WiFi is something we use on the bench to tune and to understand the robot faster, and then we turn it off and let the calibrated values do the work.
+
+## Tuning and telemetry over WiFi <a class="anchor" id="wifi-dashboard"></a>
+
+Last year, tuning meant plugging in a USB cable, opening the serial monitor, changing a number, re-flashing, and unplugging again, for every single value. With a car that has to be put back on the floor to actually test anything, that loop was painfully slow.
+
+So this year the Arduino Nano ESP32 doubles as its own WiFi access point. It starts a little network called `ROBOT_Fut`, serves a single web dashboard, and pushes live data to the browser over a WebSocket about twenty times a second. From a phone or a laptop, with the robot running on its battery on the floor, we can watch the heading, the steering angle, the encoder distance and the live camera view, and we can nudge any of the tuning parameters and see the effect immediately, no cable, no re-flash.
+
+```ino
+void setup() {
+  // ... sensors and actuators set up first ...
+
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(AP_SSID, AP_PASS);              // "ROBOT_Fut" / "futeng2026"
+
+  ws.onEvent(onWsEvent);                      // commands come back from the page
+  server.addHandler(&ws);
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *r) {
+    r->send_P(200, "text/html", INDEX_HTML);  // the dashboard lives in flash
+  });
+  server.begin();
+}
+
+void loop() {
+  // push a small JSON telemetry packet to every open browser, ~20 Hz
+  if (millis() - lastPush >= 50) {
+    lastPush = millis();
+    if (ws.count() > 0) ws.textAll(telemetry());
+  }
+}
+```
+
+The same page also embeds the camera's own live stream. The OpenMV cam runs a tiny server that sends the raw image, and all the heavy color-tuning (picking a region, averaging the LAB values, previewing the mask) happens in the browser on the laptop, not on the camera. The camera just stores whatever thresholds we settle on into a small `thresholds.json` that the run code reads at startup. Calibrating colors went from "re-flash and pray" to dragging a box on a live image.
+
+```py
+# on the OpenMV cam: stream the frame, keep the tuned colors
+def handle_save(query):           # GET /save?g=...&r=...
+    thr = parse_thresholds(query)
+    with open("thresholds.json", "w") as f:
+        json.dump(thr, f)         # the robot reads these back at boot
+    return "ok"
+```
+
+This one change is the reason everything below got built: once you can *see* the robot's numbers in real time, the bugs and the bad calibrations that used to hide for hours become obvious in minutes.
+
+## A drift-free gyro that finds its own straight <a class="anchor" id="self-straight"></a>
+
+The gyro has always been the heart of how we drive straight, but last year it had a weakness. At boot we measured its drift once over ten seconds and then trusted that number for the whole run. It worked, but the bias of a MEMS gyro moves a little as the chip warms up, so by the third lap the heading had quietly walked off by a couple of degrees, and a couple of degrees is the difference between a clean lap and clipping a wall.
+
+This year we rebuilt the gyro pipeline. The BMI088 now runs in its own task pinned to a separate core, sampling at 1000 Hz so the heading is integrated from a steady, high-rate stream instead of whatever the main loop had time for. More importantly, the drift correction never stops: whenever the readings are quiet enough that the car is clearly standing still, we keep nudging the zero-rate bias towards what the sensor reports. It's a continuous zero-rate update, and the effect is that the heading basically stops drifting, over a full run it stays within about a tenth of a degree.
+
+```ino
+// runs on its own core at 1000 Hz
+float r = readYawRate() - bias;                 // bias-corrected turn rate
+
+// if the car is sitting still, keep learning the true zero
+if (fabsf(r) < stillThreshold) stillCount++; else stillCount = 0;
+if (stillCount >= STILL_SAMPLES)
+  bias += ZRU_ALPHA * (readYawRate() - bias);   // zero-rate update
+
+// trapezoidal integration -> heading in degrees, no drift
+heading += 0.5f * (prevRate + r) * dt;
+prevRate = r;
+```
+
+A solid heading is only half of going straight, though. The other half is the steering: the servo center that actually makes the wheels point dead ahead is never a clean number, it shifts with backlash, with how the linkage settled, even with a fresh battery pushing the motor a touch harder. We used to find it by eye, write it down as `ANGLE_MID`, and re-trim it by hand whenever something changed.
+
+Now the car finds it on its own, by training on its own driving. We lock the steering at a candidate center, drive a fixed distance forward at race speed, and read how far the gyro says we drifted. That drift *is* the error: if the car curved right, the center is too far right. So we treat "find the center that gives zero drift" as a simple root-finding problem and let a secant search walk the center value towards zero error, usually in four or five passes, then do one verification run to confirm. Between passes the car drives itself back to the start, keeping straight with the gyro, so it can repeat the test without us touching it.
+
+```ino
+// drive forward with the steering locked at C, return the net heading drift
+float measureForward(int C) {
+  servo.write(C);
+  gyroZero();
+  setMotor(+g_speed);
+  while (distanceDriven() < g_distCm) { /* log heading vs distance */ }
+  setMotor(0);
+  return g_heading;          // this is our error signal: 0 = perfectly straight
+}
+
+// secant step: use the last two (center, drift) points to guess the next center
+float nextCenter(float C, float drift, float Cprev, float driftPrev) {
+  float denom = drift - driftPrev;
+  if (fabsf(denom) < 1e-3f) return C + PROBE_STEP;     // nudge if it's flat
+  return C - drift * (C - Cprev) / denom;              // aim straight at zero
+}
+```
+
+Every pass, the measured drift and the next center it's going to try show up live on the dashboard, so we can watch it converge. The first time we ran it and the number it landed on beat the one we'd been setting by hand for weeks, that was the moment this season clicked.
+
+## Our own localization and route memory <a class="anchor" id="self-localization"></a>
+
+Here is the bigger idea we've been chasing this year. A drift-free heading and a wheel encoder are, together, enough to know roughly *where the robot is on the mat*, not just which way it's pointing. So we built our own little localization: dead reckoning. Every time the encoder ticks, we know how far the wheels turned; combine that with the heading and you can integrate a position in centimeters.
+
+```ino
+// dead reckoning: turn encoder ticks + heading into an (x, y) on the mat
+float dd = (float)dCounts * CM_PER_COUNT * dir;   // distance since last update
+float th = heading * DEG2RAD;
+g_x += dd * sinf(th);
+g_y += dd * cosf(th);
+
+// drop a breadcrumb every ~1.5 cm so we can draw the path we drove
+if (movedSinceLastPoint() >= TRAIL_STEP_CM)
+  g_path[g_nPath++] = { millis(), g_x, g_y, heading };
+```
+
+The dashboard draws this as a top-down map: the robot as an arrow, the route as a trail behind it, a grid in centimeters. We can drive the car around by holding a button on the page and literally watch the map of the track build itself. When we like a lap, we save the whole trajectory to a CSV right on the robot and pull it off over WiFi.
+
+We're honest about the limits, because they shape everything: our encoder only has one working channel, so the *direction* of travel comes from the motor command rather than the wheels, and any sideways slip slowly accumulates into the position estimate. That means raw dead reckoning can't be trusted for a whole multi-lap run on its own. Our answer is to keep it anchored: the camera already finds the orange and blue corner lines and the walls every frame, and those are fixed, known features of the mat, so we use them to re-zero the position at each corner instead of letting the error pile up.
+
+```py
+# camera already detects the corner lines; now we also tag *where* it happened
+if has_line:
+    uart.write(str(direction) + '\n')   # same turn trigger as before
+    uart.write('M\n')                   # ...plus "mark this corner on the map"
+```
+
+This is also where the camera stops being just an obstacle detector and starts shaping a clean racing line. Reacting to a corner only once you see the line gives you a late, abrupt turn. But if you've driven the track once and *recorded* the smooth line through every corner, you can drive the rest of the run from that memory, the corners come out rounded and repeatable because you're replaying a good lap instead of improvising a new one each time. Recording that line works well today; replaying it through the steering is the piece we're actively tuning, and it's the direction the whole project is pointed.
+
+## Rethinking the parking <a class="anchor" id="smart-parking"></a>
+
+Last year's parking (in the final round above) was clever but completely reactive: drive along the wall, wait until the camera sees the magenta markers, then run a hardcoded slot-in sequence and hope we were positioned well. When it worked it looked great; when the approach angle was a little off, the hardcoded part inherited that error and we'd end up crooked in the pocket.
+
+With localization, parking turns into something we can actually reason about. The parking pocket is at a fixed place relative to the outer walls, so once we know our own position on the mat we know roughly where the pocket is *before* the camera even confirms it. The plan we're building for this season is to treat the pocket as a known waypoint: drive there on the recorded line, line up parallel using the gyro heading we trust, and only use the camera for the final centimeters of fine alignment against the magenta markers, instead of leaning on the camera for the entire maneuver. The hardcoded sequence stops being a leap of faith and becomes a short, well-positioned correction.
+
+## Where this is heading <a class="anchor" id="next-steps"></a>
+
+Everything above is one connected bet: that the most reliable way around this track is to *know where you are* and *drive a line you've already proven*, rather than to react frame by frame. The pieces we're proud of, drift-free heading, self-calibrating steering, live tuning, and live localization, are all working. The pieces we're still fighting with are the ones that turn a recorded path back into smooth motion: tightening the dead-reckoning so it survives a full run between corner re-zeros, and closing the loop so the steering follows the saved line instead of just plotting it.
+
+If we get there, the qualification run becomes "drive one careful lap, then replay it faster," and the final becomes "replay the line, but bend around the cubes the camera reports." That's the robot we want to bring to the table this year, and for the first time it doesn't feel out of reach.
 
 <br>
 

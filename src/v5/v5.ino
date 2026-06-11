@@ -29,7 +29,8 @@ void loop() {
     digitalWrite(DEBUG_LED, LOW); // turn off the debugging leds
 
     // custom_delay(3000);
-    
+
+    localization_reset(); // start the map fresh from the start tile
     last_rotate = millis(); // initialize times
     // time_elapsed = millis();
     // freq = 0;

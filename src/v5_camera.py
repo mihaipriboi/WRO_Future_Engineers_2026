@@ -170,6 +170,25 @@ parking_threshold = []
 
 black_threshold = [(0, 45, -10, 15, -25, 10)]
 
+# colours are tuned in the pit over WiFi (drag a box on the live image) and
+# saved to thresholds.json on the cam; the race code just loads whatever we
+# last calibrated, and falls back to the defaults above if the file isn't there
+def load_thresholds():
+    global red_threshold, green_threshold, blue_threshold, orange_threshold
+    try:
+        import json
+        with open("thresholds.json") as f:
+            t = json.load(f)
+        red_threshold    = [tuple(t["red"])]
+        green_threshold  = [tuple(t["green"])]
+        blue_threshold   = [tuple(t["blue"])]
+        orange_threshold = [tuple(t["orange"])]
+        print("loaded tuned thresholds from thresholds.json")
+    except (OSError, ValueError, KeyError):
+        print("no thresholds.json found, using built-in defaults")
+
+load_thresholds()
+
 # define threshold for "darkness"
 dark_threshold = 50
 darkness_limit = 85  # 85% threshold for too dark
@@ -537,6 +556,7 @@ while (True):
         elif has_line: # if we don't see any cubes
             # if we must turn, send the turn trigger
             send_message(str(direction))
+            send_message('M') # tag this corner on the robot's map
 #            print(str(direction))
         if is_parking_wall(parking_wall_blob):
             # if we saw the parking walls, send the parking trigger
@@ -556,6 +576,7 @@ while (True):
         if has_line:
             # if we must turn, send the turn trigger
             send_message(str(direction))
+            send_message('M') # tag this corner on the robot's map
 #            print(str(direction))
 
     if DEBUG_STREAMING:

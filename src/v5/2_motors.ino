@@ -1,7 +1,11 @@
 // -----Servo-----
+// ANGLE_MID is the dead-straight center. We no longer eyeball it: the gyro
+// auto-center routine (run on the bench over WiFi) drives the car with the
+// steering locked, reads how much it drifted, and homes in on the value that
+// gives zero drift. 57 is what it converged to on this build.
 #define SERVO_PIN D2
 #define ANGLE_MIN 17 // 10
-#define ANGLE_MID 57 // 50
+#define ANGLE_MID 57 // straight center found by the gyro auto-center routine
 #define ANGLE_MAX 97 // 90
 #define ANGLE_VARIANCE_THRESHOLD (ANGLE_MAX * 0.4)
 #define STEP 4

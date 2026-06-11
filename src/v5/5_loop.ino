@@ -105,6 +105,11 @@ void execute(String cmd) {
   if (!valid_command(cmd))
     return;
 
+  if (cmd[0] == 'M') { // the camera tagged a corner -> pin it on our map
+    mark_corner();
+    return;
+  }
+
   // the following sequence gets the number from the command (if available)
   int pos = 0, sign = 1;
   if (cmd[pos] == 'r' || cmd[pos] == 'g')
@@ -262,7 +267,8 @@ void loop_function() {
   // }
 
   read_gyro(false);
-  
+  update_odometry(); // keep our (x, y) position on the mat up to date
+
   switch(CASE) {
 
     case PID: {

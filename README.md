@@ -18,7 +18,8 @@ This repository contains the documentation for the Nerdvana Cancer team's robot 
   * [2024 TBD - National - 1st Place](#2024-national)
   * [2024 MOOYA (Mechanized Optimization for Outstanding Yield and Adaptation) - International (Turkey) - 7th Place](#2024-international)
   * [2025 MOOYA* (Mechanized Optimization for Outstanding Yield and Adaptation) - National - 1st Place](#2025-national)
-  * [2025 L.A.C.H.E. (Lightweight Autonomous Carbon-Hybrid Entity) - Current Robot](#2025-international)
+  * [2025 L.A.C.H.E. (Lightweight Autonomous Carbon-Hybrid Entity) - International](#2025-international)
+  * [2026 M.D.S (Memory, Dead-reckoning & Steering) - Current Robot](#2026-current)
 * [Mobility Management](#mobility-management)
   * [Powertrain](#powertrain-mechanical)
     * [Drivetrain](#drivetrain-mechanical)
@@ -134,7 +135,7 @@ Points are awarded based on performance in the challenge rounds, quality of the 
 
 Learn more about the challenge [here](https://wro-association.org/wp-content/uploads/WRO-2026-Future-Engineers-Self-Driving-Cars-General-Rules.pdf).
 
-## Photos of our robot L.A.C.H.E. (Lightweight Autonomous Carbon-Hybrid Entity) <a class="anchor" id="robot-image"></a>
+## Photos of our robot M.D.S (the proven L.A.C.H.E. chassis) <a class="anchor" id="robot-image"></a>
 
 | <img src="./images/robot/front.png" width="90%" /> | <img src="./images/robot/back.png" width="85%" /> | 
 | :--: | :--: | 
@@ -171,6 +172,8 @@ We have been participating in the Future Engineers category since 2022, the firs
 | *2025 National Competition* |
 | <img src="./images/readme/25-international-r.png" width="90%" /> | <img src="./images/readme/25-international-b.png" width="90%" /> |
 | *2025 International Competition* |
+| <img src="./images/readme/25-international-r.png" width="90%" /> | <img src="./images/readme/25-international-b.png" width="90%" /> |
+| *2026 Season — same chassis, new software (M.D.S)* |
 
 ## 2022 (No Name) - National - 1st Place <a class="anchor" id="2022-national"></a>
 Our first robot, built for the 2022 Future Engineers competition, was a large, bulky, and mostly Lego-based design, building on our previous experience with RobotMission (which was exclusively Lego Mindstorms). We experimented with adding more advanced components, including a Raspberry Pi 3 with a Pi Camera for object detection, a non-Lego motor and servo, and an Arduino to handle the electronics interface. The Raspberry Pi and Arduino communicated through a custom handshake, and we added ultrasonic sensors for wall and object detection.
@@ -229,7 +232,7 @@ For the national competition, we used the same robot with targeted upgrades. The
 
 With these changes, we were confident that previous camera issues would be resolved. Other mechanical and design aspects remained the same, allowing us to focus on fine-tuning and testing while simultaneously developing the next-generation robot. This strategy ensured we could maximize performance at the national level while preparing for the next step in our evolution.
 
-## 2025 L.A.C.H.E. (Lightweight Autonomous Carbon-Hybrid Entity) - Current Robot <a class="anchor" id="2025-international"></a>
+## 2025 L.A.C.H.E. (Lightweight Autonomous Carbon-Hybrid Entity) - International <a class="anchor" id="2025-international"></a>
 Following the trend of evolution, our current robot is smaller, faster, more precise, and highly custom-made. Every aspect of the design reflects lessons learned from previous years.
 
 Mechanical design:
@@ -250,6 +253,13 @@ Performance:
 - The robot's modularity allows for quick component swaps and adjustments.
 
 This robot represents the culmination of four years of experience: compact, fast, lightweight, and precise. With improved electronics, optimized mechanics, and programmable vision, it's now up to us to make the best of it in the next competitions.
+
+## 2026 M.D.S (Memory, Dead-reckoning & Steering) - Current Robot <a class="anchor" id="2026-current"></a>
+This season we did something we'd never done before: we left the robot alone. L.A.C.H.E. was the first build where the mechanics genuinely weren't the thing holding us back, the drivetrain is smooth, the Ackermann steering is precise, the weight sits where we want it, so re-printing the whole thing just to say we changed something felt like fixing what wasn't broken. Every robot photo in this repository is still that exact chassis, and the construction guide below still builds it part for part.
+
+What changed is the part you can't really photograph. This year's car is L.A.C.H.E.'s body running a completely reworked brain, and that's the reason it earns its own name. **M.D.S** stands for the three ideas that brain is built around: **M**emory, we record the line we drive so we can replay a good lap instead of reacting to every corner from scratch; **D**ead-reckoning, the robot now tracks its own position on the mat from the gyro and the encoder; and **S**teering, the car calibrates its own dead-straight trim from real driving data instead of us dialing it in by hand. It also fits the challenge nicely, a self-driving car that drives from memory and knows where it stands.
+
+All of it is written up in detail in [What We Changed This Year](#whats-new): a drift-free 1000 Hz gyro, a steering center the robot finds on its own, live tuning over WiFi, and the start of our own on-board localization. The short version is that the hardware is the same proven L.A.C.H.E., and the whole of this season went into teaching it to actually know where it is and to drive a line it has already learned.
 
 # Mobility Management <a class="anchor" id="mobility-management"></a>
 
@@ -1610,20 +1620,29 @@ This one change is the reason everything below got built: once you can *see* the
 
 The gyro has always been the heart of how we drive straight, but last year it had a weakness. At boot we measured its drift once over ten seconds and then trusted that number for the whole run. It worked, but the bias of a MEMS gyro moves a little as the chip warms up, so by the third lap the heading had quietly walked off by a couple of degrees, and a couple of degrees is the difference between a clean lap and clipping a wall.
 
-This year we rebuilt the gyro pipeline. The BMI088 now runs in its own task pinned to a separate core, sampling at 1000 Hz so the heading is integrated from a steady, high-rate stream instead of whatever the main loop had time for. More importantly, the drift correction never stops: whenever the readings are quiet enough that the car is clearly standing still, we keep nudging the zero-rate bias towards what the sensor reports. It's a continuous zero-rate update, and the effect is that the heading basically stops drifting, over a full run it stays within about a tenth of a degree.
+This year we rebuilt the gyro pipeline. The BMI088 now streams at 1000 Hz and raises a data-ready interrupt on every new sample, so the heading is integrated from a steady, high-rate stream the moment each reading lands, instead of whenever the main loop happened to get around to it. More importantly, the drift correction never stops: whenever the readings are quiet enough that the car is clearly standing still, we keep nudging the measured drift towards what the sensor reports. It's a continuous zero-rate update, and the effect is that the heading basically stops drifting, over a full run it stays within about a tenth of a degree.
 
 ```ino
-// runs on its own core at 1000 Hz
-float r = readYawRate() - bias;                 // bias-corrected turn rate
+// fires on every new gyro sample (data-ready interrupt), ~1000 Hz
+void read_gyro(bool debug) {
+  if (gyro_flag) {
+    gyro_flag = false;
+    gyro.readSensor();
+    double read_time = millis();
+    double rate = gyro.getGyroX_rads();   // raw turn rate, rad/s
 
-// if the car is sitting still, keep learning the true zero
-if (fabsf(r) < stillThreshold) stillCount++; else stillCount = 0;
-if (stillCount >= STILL_SAMPLES)
-  bias += ZRU_ALPHA * (readYawRate() - bias);   // zero-rate update
+    // continuous zero-rate update: while the car is clearly standing still,
+    // keep nudging the measured drift towards the true zero
+    if (fabs(rate - drifts_x) < STILL_RATE_THRESH) still_count++;
+    else still_count = 0;
+    if (still_count >= STILL_SAMPLES)
+      drifts_x += ZRU_ALPHA * (rate - drifts_x);
 
-// trapezoidal integration -> heading in degrees, no drift
-heading += 0.5f * (prevRate + r) * dt;
-prevRate = r;
+    // integrate the bias-corrected rate into a heading, in degrees
+    gx += (rate - drifts_x) * (read_time - gyro_last_read_time) * 0.001 * 180.0 / PI;
+    gyro_last_read_time = read_time;
+  }
+}
 ```
 
 A solid heading is only half of going straight, though. The other half is the steering: the servo center that actually makes the wheels point dead ahead is never a clean number, it shifts with backlash, with how the linkage settled, even with a fresh battery pushing the motor a touch harder. We used to find it by eye, write it down as `ANGLE_MID`, and re-trim it by hand whenever something changed.
@@ -1656,15 +1675,23 @@ Every pass, the measured drift and the next center it's going to try show up liv
 Here is the bigger idea we've been chasing this year. A drift-free heading and a wheel encoder are, together, enough to know roughly *where the robot is on the mat*, not just which way it's pointing. So we built our own little localization: dead reckoning. Every time the encoder ticks, we know how far the wheels turned; combine that with the heading and you can integrate a position in centimeters.
 
 ```ino
-// dead reckoning: turn encoder ticks + heading into an (x, y) on the mat
-float dd = (float)dCounts * CM_PER_COUNT * dir;   // distance since last update
-float th = heading * DEG2RAD;
-g_x += dd * sinf(th);
-g_y += dd * cosf(th);
+// dead reckoning: turn the distance the wheels rolled + heading into (x, y)
+void update_odometry() {
+  double cm = read_motor_cm();
+  double dd = cm - last_odo_cm;     // distance the wheels rolled since last call
+  last_odo_cm = cm;
 
-// drop a breadcrumb every ~1.5 cm so we can draw the path we drove
-if (movedSinceLastPoint() >= TRAIL_STEP_CM)
-  g_path[g_nPath++] = { millis(), g_x, g_y, heading };
+  double th = gx * DEG_TO_RAD;      // gx is our drift-free heading, in degrees
+  robot_x += dd * sin(th);
+  robot_y += dd * cos(th);
+
+  // drop a breadcrumb every ~1.5 cm so we can rebuild the line we drove
+  double ex = robot_x - last_log_x, ey = robot_y - last_log_y;
+  if (ex * ex + ey * ey >= TRAIL_STEP_CM * TRAIL_STEP_CM && path_len < MAX_PATH) {
+    path[path_len++] = { (float)robot_x, (float)robot_y, (float)gx, 0 };
+    last_log_x = robot_x; last_log_y = robot_y;
+  }
+}
 ```
 
 The dashboard draws this as a top-down map: the robot as an arrow, the route as a trail behind it, a grid in centimeters. We can drive the car around by holding a button on the page and literally watch the map of the track build itself. When we like a lap, we save the whole trajectory to a CSV right on the robot and pull it off over WiFi.
@@ -1674,8 +1701,8 @@ We're honest about the limits, because they shape everything: our encoder only h
 ```py
 # camera already detects the corner lines; now we also tag *where* it happened
 if has_line:
-    uart.write(str(direction) + '\n')   # same turn trigger as before
-    uart.write('M\n')                   # ...plus "mark this corner on the map"
+    send_message(str(direction))   # same turn trigger as before
+    send_message('M')              # ...plus "mark this corner on the map"
 ```
 
 This is also where the camera stops being just an obstacle detector and starts shaping a clean racing line. Reacting to a corner only once you see the line gives you a late, abrupt turn. But if you've driven the track once and *recorded* the smooth line through every corner, you can drive the rest of the run from that memory, the corners come out rounded and repeatable because you're replaying a good lap instead of improvising a new one each time. Recording that line works well today; replaying it through the steering is the piece we're actively tuning, and it's the direction the whole project is pointed.

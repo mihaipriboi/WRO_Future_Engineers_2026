@@ -11,6 +11,16 @@ Bmi088Accel accel(Wire,0x19);
 double gyro_last_read_time = 0;
 double drifts_x, drifts_y, drifts_z;
 
+// -----Continuous drift correction (zero-rate update)-----
+// instead of measuring the drift once at boot and trusting it for the whole
+// run, we keep refining it: whenever the car is clearly standing still we nudge
+// the measured drift towards the true zero, so the heading doesn't walk off over
+// a long run (the bias of a MEMS gyro moves a little as the chip warms up)
+#define ZRU_ALPHA 0.004           // how fast we trust a new "still" reading
+#define STILL_RATE_THRESH 0.012   // rad/s (~0.7 deg/s) -> below this we're still
+#define STILL_SAMPLES 200         // consecutive still reads before we start updating
+long still_count = 0;
+
 // -----Gyro-----
 double current_angle_gyro = 0; // due to an asymmetry in the steering (1.25)
 double kp_gyro = 0.025;
@@ -39,7 +49,7 @@ void gyro_setup(bool debug) {
 
   status = gyro.begin();
 
-  status = gyro.setOdr(Bmi088Gyro::ODR_400HZ_BW_47HZ);
+  status = gyro.setOdr(Bmi088Gyro::ODR_1000HZ_BW_116HZ);
   status = gyro.pinModeInt3(Bmi088Gyro::PUSH_PULL,Bmi088Gyro::ACTIVE_HIGH);
   status = gyro.mapDrdyInt3(true);
 
@@ -95,10 +105,21 @@ void gyro_setup(bool debug) {
 void read_gyro(bool debug) {
   if(gyro_flag) {
     gyro_flag = false;
-    gyro.readSensor();   
+    gyro.readSensor();
     double read_time = millis();
+    double rate = gyro.getGyroX_rads(); // raw turn rate, rad/s
 
-    gx += ((gyro.getGyroX_rads() - drifts_x) * (read_time - gyro_last_read_time) * 0.001) * 180.0 / PI;
+    // continuous zero-rate update: while the car is clearly standing still,
+    // keep nudging the measured drift towards the true zero so the heading
+    // never walks off, even after several laps
+    if (fabs(rate - drifts_x) < STILL_RATE_THRESH) {
+      if (still_count < 1000000) still_count++;
+    }
+    else still_count = 0;
+    if (still_count >= STILL_SAMPLES)
+      drifts_x += ZRU_ALPHA * (rate - drifts_x);
+
+    gx += ((rate - drifts_x) * (read_time - gyro_last_read_time) * 0.001) * 180.0 / PI;
     // gy += ((gyro.getGyroY_rads() - drifts_y) * (read_time - gyro_last_read_time) * 0.001) * 180.0 / PI;
     // gz += ((gyro.getGyroZ_rads() - drifts_z) * (read_time - gyro_last_read_time) * 0.001) * 180.0 / PI;
 
